@@ -2,13 +2,16 @@
 
 #include <string.h>
 
-void game_state_reset(GameState* const game_state);
-void game_state_post_update(GameState* const state);
-void game_state_undo(GameState* const state);
-void game_state_apply_move_result(GameState* const state, const MoveResult* const move_result);
-void game_state_save_score(GameState* const state);
-static bool game_state_is_valid(const GameState* const state);
+static void game_state_reset(GameState* const game_state);
+static void game_state_undo(GameState* const state);
+static void
+    game_state_apply_move_result(GameState* const state, const MoveResult* const move_result);
+static void game_state_save_score(GameState* const state);
 static bool game_state_board_table_is_valid(const GameStateBoard* const board);
+
+// Not static: the host unit tests call this directly to exercise game-over
+// handling without depending on random tile spawns.
+void game_state_post_update(GameState* const state);
 
 void game_state_init(GameState* const game_state) {
     game_state->top_score = 0;
@@ -21,29 +24,27 @@ void game_state_send(GameState* state, GameEvent event) {
     switch(event) {
     case GameMoveLeft:
         game_board_table_move_left(state->board.table, &move_result);
-        game_state_apply_move_result(state, &move_result);
         break;
     case GameMoveRight:
         game_board_table_move_right(state->board.table, &move_result);
-        game_state_apply_move_result(state, &move_result);
         break;
     case GameMoveUp:
         game_board_table_move_up(state->board.table, &move_result);
-        game_state_apply_move_result(state, &move_result);
         break;
     case GameMoveDown:
         game_board_table_move_down(state->board.table, &move_result);
-        game_state_apply_move_result(state, &move_result);
         break;
     case GameMoveUndo:
         game_state_undo(state);
-        break;
+        return;
     case GameReset:
         game_state_reset(state);
-        break;
+        return;
     default:
-        break;
+        return;
     }
+
+    game_state_apply_move_result(state, &move_result);
 }
 
 bool game_state_dump(GameState* const state, GameStateDumpCallback cb) {
@@ -118,8 +119,9 @@ void game_state_save_score(GameState* const state) {
 
 // A save file is copied into GameState verbatim, so an invalid or corrupted
 // file could otherwise smuggle in out-of-range values: a cell above
-// MAX_CELL_VALUE overflows the digits sprite atlas on draw, and history.top
-// outside its range makes the history stack read/write out of bounds.
+// MAX_CELL_VALUE would index past the digits sprite atlas (the drawer's range
+// check is only a second line of defense), and history.top outside its range
+// makes the history stack read/write out of bounds.
 bool game_state_is_valid(const GameState* const state) {
     if(!game_state_board_table_is_valid(&state->board)) return false;
 

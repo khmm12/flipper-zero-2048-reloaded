@@ -10,7 +10,7 @@
 // The save file is a raw dump of GameState, so any struct change silently
 // breaks compatibility. The header makes that explicit: bump SAVE_VERSION
 // whenever the GameState layout changes.
-#define SAVE_MAGIC   0x38343032u // "2048"
+#define SAVE_MAGIC   0x38343032u // "2048" as on-disk little-endian bytes
 #define SAVE_VERSION 2u
 
 typedef struct {
@@ -19,7 +19,7 @@ typedef struct {
 } GameSaveHeader;
 
 static bool game_state_load_callback(GameState* state);
-static bool game_state_save_callback(GameState* gamectrl);
+static bool game_state_save_callback(GameState* state);
 
 void game_controller_init(GameController* gamectrl) {
     game_state_init(&gamectrl->state);
@@ -43,17 +43,30 @@ void game_controller_close_menu(GameController* gamectrl) {
 bool game_state_load_callback(GameState* state) {
     Storage* storage = furi_record_open(RECORD_STORAGE);
 
-    bool is_opened = false;
     bool is_loaded = false;
 
     File* file = storage_file_alloc(storage);
     if(storage_file_open(file, SAVE_FILENAME, FSAM_READ, FSOM_OPEN_EXISTING)) {
-        is_opened = true;
-
         GameSaveHeader header;
-        is_loaded = storage_file_read(file, &header, sizeof(header)) == sizeof(header) &&
-                    header.magic == SAVE_MAGIC && header.version == SAVE_VERSION &&
-                    storage_file_read(file, state, sizeof(GameState)) == sizeof(GameState);
+        if(storage_file_read(file, &header, sizeof(header)) != sizeof(header) ||
+           header.magic != SAVE_MAGIC) {
+            FURI_LOG_W(LOG_TAG, "Failed to load game. The storage file contains invalid data.");
+        } else if(header.version != SAVE_VERSION) {
+            FURI_LOG_W(
+                LOG_TAG,
+                "Failed to load game. Save version %lu, expected %u - discarding.",
+                header.version,
+                SAVE_VERSION);
+        } else if(storage_file_read(file, state, sizeof(GameState)) != sizeof(GameState)) {
+            FURI_LOG_W(LOG_TAG, "Failed to load game. The storage file contains invalid data.");
+        } else if(!game_state_is_valid(state)) {
+            FURI_LOG_W(LOG_TAG, "Failed to load game. The saved state is out of range.");
+        } else {
+            FURI_LOG_I(LOG_TAG, "Game state loaded");
+            is_loaded = true;
+        }
+    } else {
+        FURI_LOG_I(LOG_TAG, "Failed to load game. The storage file does not exist.");
     }
 
     storage_file_close(file);
@@ -61,18 +74,10 @@ bool game_state_load_callback(GameState* state) {
 
     furi_record_close(RECORD_STORAGE);
 
-    if(is_loaded) {
-        FURI_LOG_I(LOG_TAG, "Game state loaded");
-    } else if(is_opened) {
-        FURI_LOG_W(LOG_TAG, "Failed to load game. The storage file contains invalid data.");
-    } else {
-        FURI_LOG_I(LOG_TAG, "Failed to load game. The storage file does not exist.");
-    }
-
     return is_loaded;
 }
 
-bool game_state_save_callback(GameState* gamectrl) {
+bool game_state_save_callback(GameState* state) {
     Storage* storage = furi_record_open(RECORD_STORAGE);
 
     bool is_saved = false;
@@ -81,10 +86,12 @@ bool game_state_save_callback(GameState* gamectrl) {
     if(storage_file_open(file, SAVE_FILENAME, FSAM_WRITE, FSOM_CREATE_ALWAYS)) {
         GameSaveHeader header = {.magic = SAVE_MAGIC, .version = SAVE_VERSION};
         is_saved = storage_file_write(file, &header, sizeof(header)) == sizeof(header) &&
-                   storage_file_write(file, gamectrl, sizeof(GameState)) == sizeof(GameState);
+                   storage_file_write(file, state, sizeof(GameState)) == sizeof(GameState);
     }
 
-    storage_file_close(file);
+    // Buffered data flushes on close, so a failed close means the save may not
+    // have reached the card.
+    is_saved = storage_file_close(file) && is_saved;
     storage_file_free(file);
 
     furi_record_close(RECORD_STORAGE);

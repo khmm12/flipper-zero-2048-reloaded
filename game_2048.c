@@ -31,6 +31,8 @@ static void game_2048_app_init(Game2048App* app);
 static void game_2048_app_deinit(Game2048App* app);
 static void game_2048_app_update(Game2048App* app);
 static bool game_2048_app_request_update(Game2048App* app);
+static void game_2048_app_acquire_lock(Game2048App* app);
+static void game_2048_app_release_lock(Game2048App* app);
 static void input_callback(InputEvent* input_event, void* ctx);
 static void draw_callback(Canvas* const canvas, void* ctx);
 static void save_timer_callback(void* ctx);
@@ -97,8 +99,9 @@ void game_2048_app_release_lock(Game2048App* app) {
 bool game_2048_app_request_update(Game2048App* app) {
     AppEvent event;
 
-    FuriStatus event_status = furi_message_queue_get(app->event_queue, &event, FuriWaitForever);
-    if(event_status != FuriStatusOk) return true;
+    // With an infinite timeout on a valid queue this can only fail on a
+    // programming error - fail loudly instead of silently spinning.
+    furi_check(furi_message_queue_get(app->event_queue, &event, FuriWaitForever) == FuriStatusOk);
 
     switch(event.type) {
     case AppEventTypeInput: {
@@ -143,8 +146,8 @@ void save_timer_callback(void* ctx) {
     furi_assert(ctx);
     Game2048App* app = ctx;
     // Runs in the timer service thread: never block and never touch storage
-    // here, just ask the main loop to save. A dropped tick is fine — the next
-    // one fires in a minute.
+    // here, just ask the main loop to save. A dropped tick is fine - the next
+    // one will catch up.
     AppEvent event = {.type = AppEventTypeSaveTick};
     furi_message_queue_put(app->event_queue, &event, 0);
 }

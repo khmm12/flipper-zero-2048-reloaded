@@ -29,3 +29,4 @@ void game_state_init(GameState* const game_state);
 void game_state_send(GameState* state, GameEvent event);
 bool game_state_load(GameState* state, GameStateLoadCallback cb);
 bool game_state_dump(GameState* const state, GameStateDumpCallback cb);
+bool game_state_is_valid(const GameState* const state);
