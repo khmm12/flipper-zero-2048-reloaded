@@ -1,0 +1,27 @@
+# Project toolchain, managed by mise (https://mise.jdx.dev/).
+#
+# Provisions ufbt (the micro Flipper Build Tool) via the pipx backend. When uv is
+# installed mise uses uvx, so the isolated install is fast. After `mise install`
+# the `ufbt` command is on PATH inside the project.
+[tools]
+"pipx:ufbt" = "latest"
+
+[tasks.build]
+description = "Build the FAP (lands in dist/)"
+run = "ufbt"
+
+[tasks.test]
+description = "Build and run the host unit tests (strict warnings + sanitizers)"
+run = "make -C test test"
+
+[tasks.lint]
+description = "Strict-warning compile of the host-testable core + clang-format check"
+run = ["make -C test lint", "ufbt lint"]
+
+[tasks.format]
+description = "Apply the project clang-format style"
+run = "ufbt format"
+
+[tasks.launch]
+description = "Build, deploy over USB, and run on the Flipper"
+run = "ufbt launch"

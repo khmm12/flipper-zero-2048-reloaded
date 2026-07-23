@@ -1,0 +1,465 @@
+// Host-side unit tests for the pure game core: board moves, history, state.
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#include "game_state.h"
+#include "game_state_board_table.h"
+
+// Internal game_state helper, exercised directly to test game-over handling
+// without depending on random tile spawns. Keep the prototype in sync with
+// game_state.c — the linker won't catch a signature drift.
+void game_state_post_update(GameState* const state);
+
+static int failures = 0;
+
+#define CHECK(cond)                                                \
+    do {                                                           \
+        if(!(cond)) {                                              \
+            failures++;                                            \
+            printf("FAIL %s:%d: %s\n", __FILE__, __LINE__, #cond); \
+        }                                                          \
+    } while(0)
+
+static void table_set(GameBoardTable table, const uint8_t values[CELLS_COUNT][CELLS_COUNT]) {
+    memcpy(table, values, sizeof(GameBoardTable));
+}
+
+static bool table_equals(GameBoardTable table, const uint8_t values[CELLS_COUNT][CELLS_COUNT]) {
+    return memcmp(table, values, sizeof(GameBoardTable)) == 0;
+}
+
+static uint8_t table_count_non_empty(GameBoardTable table) {
+    uint8_t count = 0;
+    for(uint8_t i = 0; i < CELLS_COUNT; i++) {
+        for(uint8_t j = 0; j < CELLS_COUNT; j++) {
+            if(table[i][j] != 0) count++;
+        }
+    }
+    return count;
+}
+
+// A full board with no adjacent equal cells: no move is possible.
+static const uint8_t dead_board[CELLS_COUNT][CELLS_COUNT] = {
+    {1, 2, 1, 2},
+    {2, 1, 2, 1},
+    {1, 2, 1, 2},
+    {2, 1, 2, 1},
+};
+
+static void test_move_left_shift(void) {
+    GameBoardTable table = {0};
+    MoveResult r;
+
+    table[0][3] = 1;
+    game_board_table_move_left(table, &r);
+    CHECK(r.is_table_updated);
+    CHECK(r.score_points == 0);
+    CHECK(r.new_table[0][0] == 1 && r.new_table[0][3] == 0);
+}
+
+static void test_move_left_merge_with_gap(void) {
+    GameBoardTable table = {0};
+    MoveResult r;
+
+    // 2 _ 2 _ -> 4 _ _ _, scores 4
+    table[0][0] = 1;
+    table[0][2] = 1;
+    game_board_table_move_left(table, &r);
+    CHECK(r.is_table_updated);
+    CHECK(r.score_points == 4);
+    CHECK(r.new_table[0][0] == 2 && r.new_table[0][1] == 0 && r.new_table[0][2] == 0);
+}
+
+static void test_move_left_no_double_merge(void) {
+    GameBoardTable table = {0};
+    MoveResult r;
+
+    // 2 2 2 _ -> 4 2 _ _ (the leftmost pair merges, the result does not re-merge)
+    table[0][0] = 1;
+    table[0][1] = 1;
+    table[0][2] = 1;
+    game_board_table_move_left(table, &r);
+    CHECK(r.score_points == 4);
+    CHECK(r.new_table[0][0] == 2 && r.new_table[0][1] == 1 && r.new_table[0][2] == 0);
+}
+
+static void test_move_left_two_pairs(void) {
+    GameBoardTable table = {0};
+    MoveResult r;
+
+    // 2 2 4 4 -> 4 8 _ _, scores 4 + 8
+    table[0][0] = 1;
+    table[0][1] = 1;
+    table[0][2] = 2;
+    table[0][3] = 2;
+    game_board_table_move_left(table, &r);
+    CHECK(r.score_points == 12);
+    CHECK(r.new_table[0][0] == 2 && r.new_table[0][1] == 3 && r.new_table[0][2] == 0);
+}
+
+static void test_move_noop_is_not_an_update(void) {
+    GameBoardTable table = {0};
+    MoveResult r;
+
+    // 2 4 8 16 packed to the left: moving left changes nothing.
+    table[0][0] = 1;
+    table[0][1] = 2;
+    table[0][2] = 3;
+    table[0][3] = 4;
+    game_board_table_move_left(table, &r);
+    CHECK(!r.is_table_updated);
+    CHECK(r.score_points == 0);
+    CHECK(table_equals(r.new_table, (const uint8_t(*)[CELLS_COUNT])table));
+}
+
+static void test_move_right_merge_order(void) {
+    GameBoardTable table = {0};
+    MoveResult r;
+
+    // 2 2 2 _ moved right -> _ _ 2 4: the rightmost pair merges first.
+    table[0][0] = 1;
+    table[0][1] = 1;
+    table[0][2] = 1;
+    game_board_table_move_right(table, &r);
+    CHECK(r.score_points == 4);
+    CHECK(r.new_table[0][3] == 2 && r.new_table[0][2] == 1 && r.new_table[0][1] == 0);
+}
+
+static void test_move_directions(void) {
+    GameBoardTable table = {0};
+    MoveResult r;
+
+    table[0][0] = 1;
+    table[0][1] = 1;
+    game_board_table_move_right(table, &r);
+    CHECK(r.new_table[0][3] == 2 && r.new_table[0][0] == 0);
+
+    memset(table, 0, sizeof(table));
+    table[0][0] = 1;
+    table[1][0] = 1;
+    game_board_table_move_down(table, &r);
+    CHECK(r.new_table[3][0] == 2 && r.new_table[0][0] == 0);
+
+    memset(table, 0, sizeof(table));
+    table[2][1] = 1;
+    table[3][1] = 1;
+    game_board_table_move_up(table, &r);
+    CHECK(r.new_table[0][1] == 2 && r.new_table[3][1] == 0);
+}
+
+static void test_can_move_and_game_over(void) {
+    GameBoardTable table;
+
+    table_set(table, dead_board);
+    CHECK(!game_board_table_can_move(table));
+    CHECK(!game_board_table_has_empty_cells(table));
+
+    // A single adjacent pair makes the board playable again.
+    table[0][1] = 1;
+    CHECK(game_board_table_can_move(table));
+
+    GameStateBoard board;
+    table_set(board.table, dead_board);
+    CHECK(game_state_board_is_over(&board));
+}
+
+// Oracle for the property test below: the definition of "can move" is that
+// simulating some direction actually changes the board.
+static bool can_move_by_simulation(GameBoardTable table) {
+    MoveResult r;
+
+    game_board_table_move_left(table, &r);
+    if(r.is_table_updated) return true;
+    game_board_table_move_right(table, &r);
+    if(r.is_table_updated) return true;
+    game_board_table_move_up(table, &r);
+    if(r.is_table_updated) return true;
+    game_board_table_move_down(table, &r);
+    return r.is_table_updated;
+}
+
+static void test_can_move_matches_simulation(void) {
+    GameBoardTable table = {0};
+
+    // Empty board: nothing to move.
+    CHECK(!game_board_table_can_move(table));
+
+    // Sparse random boards (~25% empty cells) exercise the shift condition.
+    for(uint16_t n = 0; n < 200; n++) {
+        for(uint8_t i = 0; i < CELLS_COUNT; i++) {
+            for(uint8_t j = 0; j < CELLS_COUNT; j++) {
+                table[i][j] = (uint8_t)(random() % 4);
+            }
+        }
+        CHECK(game_board_table_can_move(table) == can_move_by_simulation(table));
+    }
+
+    // Full random boards exercise the adjacent-pair condition.
+    for(uint16_t n = 0; n < 200; n++) {
+        for(uint8_t i = 0; i < CELLS_COUNT; i++) {
+            for(uint8_t j = 0; j < CELLS_COUNT; j++) {
+                table[i][j] = (uint8_t)(1 + random() % 3);
+            }
+        }
+        CHECK(game_board_table_can_move(table) == can_move_by_simulation(table));
+    }
+}
+
+static void test_push_random_digit(void) {
+    GameBoardTable table = {0};
+
+    game_board_table_push_random_digit(table);
+    CHECK(table_count_non_empty(table) == 1);
+    game_board_table_push_random_digit(table);
+    CHECK(table_count_non_empty(table) == 2);
+
+    // Spawned tiles are always the exponents for 2 or 4.
+    for(uint8_t k = 0; k < 32; k++) {
+        memset(table, 0, sizeof(GameBoardTable));
+        game_board_table_push_random_digit(table);
+        for(uint8_t i = 0; i < CELLS_COUNT; i++) {
+            for(uint8_t j = 0; j < CELLS_COUNT; j++) {
+                if(table[i][j] != 0) CHECK(table[i][j] == 1 || table[i][j] == 2);
+            }
+        }
+    }
+
+    // A full board must stay untouched.
+    table_set(table, dead_board);
+    game_board_table_push_random_digit(table);
+    CHECK(table_equals(table, dead_board));
+}
+
+static void test_history_lifo_and_overflow(void) {
+    GameStateBoardHistory history;
+    GameStateBoard board = {0};
+
+    game_state_board_history_init(&history);
+
+    // Pop from an empty history is a no-op.
+    board.score = 42;
+    game_state_board_history_pop(&history, &board);
+    CHECK(board.score == 42);
+
+    // Push more boards than HISTORY_SIZE: the oldest are dropped.
+    for(uint32_t i = 1; i <= HISTORY_SIZE + 2; i++) {
+        board.score = i;
+        game_state_board_history_push(&history, &board);
+    }
+    for(uint32_t i = HISTORY_SIZE + 2; i > 2; i--) {
+        game_state_board_history_pop(&history, &board);
+        CHECK(board.score == i);
+    }
+    board.score = 0;
+    game_state_board_history_pop(&history, &board);
+    CHECK(board.score == 0);
+}
+
+static void test_game_state_move_and_undo(void) {
+    GameState state;
+    game_state_init(&state);
+
+    memset(state.board.table, 0, sizeof(GameBoardTable));
+    state.board.table[0][0] = 1;
+    state.board.table[0][1] = 1;
+    state.board.score = 0;
+    state.board.moves = 0;
+
+    GameBoardTable before;
+    game_board_table_copy(state.board.table, before);
+
+    game_state_send(&state, GameMoveLeft);
+    CHECK(state.board.score == 4);
+    CHECK(state.board.moves == 1);
+    CHECK(state.board.table[0][0] == 2);
+
+    game_state_send(&state, GameMoveUndo);
+    CHECK(state.board.score == 0);
+    CHECK(state.board.moves == 0);
+    CHECK(table_equals(state.board.table, (const uint8_t(*)[CELLS_COUNT])before));
+}
+
+static void test_noop_move_has_no_side_effects(void) {
+    GameState state;
+    game_state_init(&state);
+
+    // A fully packed row: moving left changes nothing, so the move must not
+    // count, spawn a tile, or push history.
+    memset(state.board.table, 0, sizeof(GameBoardTable));
+    state.board.table[0][0] = 1;
+    state.board.table[0][1] = 2;
+    state.board.table[0][2] = 3;
+    state.board.table[0][3] = 4;
+    state.board.score = 0;
+    state.board.moves = 0;
+    game_state_board_history_init(&state.history);
+
+    GameBoardTable before;
+    game_board_table_copy(state.board.table, before);
+
+    game_state_send(&state, GameMoveLeft);
+    CHECK(state.board.moves == 0);
+    CHECK(state.board.score == 0);
+    CHECK(state.history.top == -1);
+    CHECK(table_equals(state.board.table, (const uint8_t(*)[CELLS_COUNT])before));
+}
+
+static void test_record_broken_flag(void) {
+    GameState state;
+    game_state_init(&state);
+
+    // Game over with a score above the previous record.
+    state.top_score = 100;
+    table_set(state.board.table, dead_board);
+    state.board.score = 200;
+    game_state_post_update(&state);
+    CHECK(state.is_over);
+    CHECK(state.is_record_broken);
+    CHECK(state.top_score == 200);
+
+    // A redundant update while already over must keep the flag.
+    game_state_post_update(&state);
+    CHECK(state.is_record_broken);
+
+    // Game over below the record: no flag, record kept.
+    game_state_init(&state);
+    state.top_score = 100;
+    table_set(state.board.table, dead_board);
+    state.board.score = 50;
+    game_state_post_update(&state);
+    CHECK(state.is_over);
+    CHECK(!state.is_record_broken);
+    CHECK(state.top_score == 100);
+
+    // Tying the record is not a new record.
+    game_state_init(&state);
+    state.top_score = 100;
+    table_set(state.board.table, dead_board);
+    state.board.score = 100;
+    game_state_post_update(&state);
+    CHECK(state.is_over);
+    CHECK(!state.is_record_broken);
+    CHECK(state.top_score == 100);
+}
+
+static void test_undo_out_of_game_over(void) {
+    GameState state;
+    game_state_init(&state);
+
+    GameStateBoard playable = {0};
+    playable.table[0][0] = 1;
+    playable.score = 10;
+    game_state_board_history_push(&state.history, &playable);
+
+    state.top_score = 100;
+    table_set(state.board.table, dead_board);
+    state.board.score = 200;
+    game_state_post_update(&state);
+    CHECK(state.is_over);
+    CHECK(state.is_record_broken);
+
+    // Undo is the only way out of game over besides reset: it must restore
+    // the previous board and clear is_over, while the captured record stays.
+    game_state_send(&state, GameMoveUndo);
+    CHECK(!state.is_over);
+    CHECK(state.board.score == 10);
+    CHECK(state.top_score == 200);
+    CHECK(state.is_record_broken);
+}
+
+static void test_state_validation_boundaries(void) {
+    GameState state;
+    game_state_init(&state);
+    // Raising history.top below exposes items the init left uninitialized —
+    // zero them so validation sees empty boards there.
+    memset(state.history.items, 0, sizeof(state.history.items));
+
+    // A cell at exactly MAX_CELL_VALUE is the largest valid tile.
+    state.board.table[0][0] = MAX_CELL_VALUE;
+    CHECK(game_state_is_valid(&state));
+    state.board.table[0][0] = MAX_CELL_VALUE + 1;
+    CHECK(!game_state_is_valid(&state));
+    state.board.table[0][0] = 0;
+
+    // history.top is valid across its whole range and nowhere else.
+    state.history.top = -1;
+    CHECK(game_state_is_valid(&state));
+    state.history.top = HISTORY_SIZE - 1;
+    CHECK(game_state_is_valid(&state));
+    state.history.top = -2;
+    CHECK(!game_state_is_valid(&state));
+    state.history.top = HISTORY_SIZE;
+    CHECK(!game_state_is_valid(&state));
+}
+
+static bool load_valid(GameState* state) {
+    state->top_score = 123;
+    return true;
+}
+
+static bool load_failed(GameState* state) {
+    (void)state;
+    return false;
+}
+
+static bool load_bad_cell(GameState* state) {
+    state->board.table[0][0] = MAX_CELL_VALUE + 1;
+    return true;
+}
+
+static bool load_bad_history_top(GameState* state) {
+    state->history.top = HISTORY_SIZE;
+    return true;
+}
+
+static bool load_bad_history_cell(GameState* state) {
+    state->history.top = 0;
+    state->history.items[0].table[1][2] = MAX_CELL_VALUE + 1;
+    return true;
+}
+
+static void test_load_validation(void) {
+    GameState state;
+    game_state_init(&state);
+
+    CHECK(game_state_load(&state, load_valid));
+    CHECK(state.top_score == 123);
+
+    GameState untouched = state;
+    CHECK(!game_state_load(&state, load_failed));
+    CHECK(!game_state_load(&state, load_bad_cell));
+    CHECK(!game_state_load(&state, load_bad_history_top));
+    CHECK(!game_state_load(&state, load_bad_history_cell));
+    // Failed loads must not leak partially-read data into the live state.
+    CHECK(memcmp(&state, &untouched, sizeof(GameState)) == 0);
+}
+
+int main(void) {
+    srandom(42);
+
+    test_move_left_shift();
+    test_move_left_merge_with_gap();
+    test_move_left_no_double_merge();
+    test_move_left_two_pairs();
+    test_move_noop_is_not_an_update();
+    test_move_right_merge_order();
+    test_move_directions();
+    test_can_move_and_game_over();
+    test_can_move_matches_simulation();
+    test_push_random_digit();
+    test_history_lifo_and_overflow();
+    test_game_state_move_and_undo();
+    test_noop_move_has_no_side_effects();
+    test_record_broken_flag();
+    test_undo_out_of_game_over();
+    test_state_validation_boundaries();
+    test_load_validation();
+
+    if(failures == 0) {
+        printf("OK: all tests passed\n");
+        return 0;
+    }
+    printf("%d check(s) failed\n", failures);
+    return 1;
+}

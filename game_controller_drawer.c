@@ -1,4 +1,4 @@
-#define __game_controller_c
+#define GAME_CONTROLLER_INTERNAL
 #include "game_controller.h"
 
 #include <furi.h>
@@ -6,9 +6,9 @@
 #include "digits.h"
 
 #define CELL_INNER_SIZE 14
-#define FRAME_LEFT 10
-#define FRAME_TOP 1
-#define FRAME_SIZE 61
+#define FRAME_LEFT      10
+#define FRAME_TOP       1
+#define FRAME_SIZE      61
 
 static const char* popup_menu_items[] = {"Resume", "New Game"};
 
@@ -65,7 +65,7 @@ static void game_controller_draw_menu(const GameController* gamectrl, Canvas* co
 static void game_controller_draw_game_over(const GameController* gamectrl, Canvas* const canvas) {
     ui_draw_popup_background(canvas);
 
-    bool record_broken = gamectrl->state.board.score > gamectrl->state.top_score;
+    bool record_broken = gamectrl->state.is_record_broken;
 
     canvas_set_color(canvas, ColorWhite);
     canvas_draw_rbox(canvas, 14, 12, 100, 40, 4);
@@ -84,28 +84,19 @@ static void game_controller_draw_game_over(const GameController* gamectrl, Canva
         canvas_draw_str_aligned(canvas, 64, 29, AlignCenter, AlignTop, "Your Score");
     }
 
-    uint8_t bufSize = 12;
-    char buf[bufSize];
-
-    memset(buf, 0, bufSize);
+    char buf[12];
     snprintf(buf, sizeof(buf), "%lu", gamectrl->state.board.score);
     canvas_set_font(canvas, FontPrimary);
     canvas_draw_str_aligned(canvas, 64, 48, AlignCenter, AlignBottom, buf);
 }
 
 static void ui_draw_digit(Canvas* canvas, uint8_t row, uint8_t column, uint8_t value) {
-    if(value == 0) return;
+    if(value == 0 || value > MAX_CELL_VALUE) return;
 
     uint8_t left = FRAME_LEFT + 1 + (column * (CELL_INNER_SIZE + 1));
     uint8_t top = FRAME_TOP + 1 + (row * (CELL_INNER_SIZE + 1));
 
-    for(uint8_t r = 0; r < CELL_INNER_SIZE; r++) {
-        for(uint8_t c = 0; c < CELL_INNER_SIZE; c++) {
-            if(digits[value - 1][r][c] == 1) {
-                canvas_draw_dot(canvas, left + c, top + r);
-            }
-        }
-    }
+    canvas_draw_xbm(canvas, left, top, CELL_INNER_SIZE, CELL_INNER_SIZE, digits[value - 1]);
 }
 
 static void ui_draw_table(Canvas* canvas, const GameBoardTable table) {
@@ -136,29 +127,33 @@ static void ui_draw_stats(Canvas* const canvas, const GameState* state) {
     canvas_draw_str_aligned(canvas, 128, FRAME_TOP + 20, AlignRight, AlignTop, "Moves");
     canvas_draw_str_aligned(canvas, 128, FRAME_TOP + 40, AlignRight, AlignTop, "Top Score");
 
-    uint8_t bufSize = 12;
-    char buf[bufSize];
+    char buf[12];
 
     canvas_set_font(canvas, FontSecondary);
 
     snprintf(buf, sizeof(buf), "%lu", state->board.score);
-    canvas_set_font(canvas, FontSecondary);
     canvas_draw_str_aligned(canvas, 128, FRAME_TOP + 10, AlignRight, AlignTop, buf);
 
-    memset(buf, 0, bufSize);
     snprintf(buf, sizeof(buf), "%lu", state->board.moves);
     canvas_draw_str_aligned(canvas, 128, FRAME_TOP + 30, AlignRight, AlignTop, buf);
 
-    memset(buf, 0, bufSize);
     snprintf(buf, sizeof(buf), "%lu", state->top_score);
     canvas_draw_str_aligned(canvas, 128, FRAME_TOP + 50, AlignRight, AlignTop, buf);
 }
 
 static void ui_draw_popup_background(Canvas* const canvas) {
+    // 8x64 checkerboard strip (a white pixel wherever x + y is odd), tiled
+    // across the screen to dim the game underneath. Replaces plotting the
+    // same pattern with ~4000 canvas_draw_dot calls per frame.
+    static const uint8_t dither_strip[64] = {
+        0xaa, 0x55, 0xaa, 0x55, 0xaa, 0x55, 0xaa, 0x55, 0xaa, 0x55, 0xaa, 0x55, 0xaa,
+        0x55, 0xaa, 0x55, 0xaa, 0x55, 0xaa, 0x55, 0xaa, 0x55, 0xaa, 0x55, 0xaa, 0x55,
+        0xaa, 0x55, 0xaa, 0x55, 0xaa, 0x55, 0xaa, 0x55, 0xaa, 0x55, 0xaa, 0x55, 0xaa,
+        0x55, 0xaa, 0x55, 0xaa, 0x55, 0xaa, 0x55, 0xaa, 0x55, 0xaa, 0x55, 0xaa, 0x55,
+        0xaa, 0x55, 0xaa, 0x55, 0xaa, 0x55, 0xaa, 0x55, 0xaa, 0x55, 0xaa, 0x55};
+
     canvas_set_color(canvas, ColorWhite);
-    for(uint8_t x = 0; x < 128; x += 2) {
-        for(uint8_t y = 0; y < 64; y++) {
-            canvas_draw_dot(canvas, x + (y % 2 == 1 ? 0 : 1), y);
-        }
+    for(uint8_t x = 0; x < 128; x += 8) {
+        canvas_draw_xbm(canvas, x, 0, 8, 64, dither_strip);
     }
 }

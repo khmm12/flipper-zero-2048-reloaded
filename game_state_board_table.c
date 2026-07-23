@@ -1,5 +1,8 @@
 #include "game_state_board_table.h"
 
+#include <stdlib.h>
+#include <string.h>
+
 typedef uint8_t GameBoardTableLine[CELLS_COUNT];
 
 static void
@@ -15,7 +18,7 @@ static void game_board_table_line_reverse(GameBoardTableLine line);
 static void
     game_board_table_line_shift(GameBoardTableLine line, uint8_t from_index, uint8_t offset);
 static uint8_t game_board_table_line_find_non_empty_cell_index(GameBoardTableLine line, uint8_t i);
-static void move_result_init(MoveResult* move_result, const GameBoardTable table);
+static void move_result_init(MoveResult* move_result, GameBoardTable table);
 
 void game_board_table_init(GameBoardTable table) {
     memset(table, 0, sizeof(GameBoardTable));
@@ -23,26 +26,33 @@ void game_board_table_init(GameBoardTable table) {
     game_board_table_push_random_digit(table);
 }
 
-void game_board_table_copy(GameBoardTable const table, GameBoardTable dest) {
-    memcpy(dest, table, sizeof(GameBoardTable));
+void game_board_table_copy(GameBoardTable src, GameBoardTable dest) {
+    memcpy(dest, src, sizeof(GameBoardTable));
 }
 
+// A move is possible iff a tile can shift or two adjacent tiles can merge.
+// A shift exists exactly when the board holds both a tile and an empty cell:
+// if no direction shifts anything, every row and column is entirely empty or
+// entirely full, which is impossible on a board that has both. The property
+// test in test_game_2048.c checks this against move simulation.
 bool game_board_table_can_move(GameBoardTable table) {
-    MoveResult move_result;
+    bool has_tile = false;
+    bool has_empty = false;
 
-    game_board_table_move_left(table, &move_result);
-    if(move_result.is_table_updated) return true;
+    for(uint8_t i = 0; i < CELLS_COUNT; i++) {
+        for(uint8_t j = 0; j < CELLS_COUNT; j++) {
+            uint8_t value = table[i][j];
+            if(value == 0) {
+                has_empty = true;
+                continue;
+            }
+            has_tile = true;
+            if(j + 1 < CELLS_COUNT && value == table[i][j + 1]) return true;
+            if(i + 1 < CELLS_COUNT && value == table[i + 1][j]) return true;
+        }
+    }
 
-    game_board_table_move_right(table, &move_result);
-    if(move_result.is_table_updated) return true;
-
-    game_board_table_move_up(table, &move_result);
-    if(move_result.is_table_updated) return true;
-
-    game_board_table_move_down(table, &move_result);
-    if(move_result.is_table_updated) return true;
-
-    return false;
+    return has_tile && has_empty;
 }
 
 bool game_board_table_has_empty_cells(GameBoardTable table) {
@@ -57,7 +67,7 @@ bool game_board_table_has_empty_cells(GameBoardTable table) {
     return false;
 }
 
-void game_board_table_move_left(GameBoardTable const table, MoveResult* const move_result) {
+void game_board_table_move_left(GameBoardTable table, MoveResult* const move_result) {
     move_result_init(move_result, table);
 
     for(uint8_t row_index = 0; row_index < CELLS_COUNT; row_index++) {
@@ -69,7 +79,7 @@ void game_board_table_move_left(GameBoardTable const table, MoveResult* const mo
     }
 }
 
-void game_board_table_move_right(GameBoardTable const table, MoveResult* const move_result) {
+void game_board_table_move_right(GameBoardTable table, MoveResult* const move_result) {
     move_result_init(move_result, table);
 
     for(uint8_t row_index = 0; row_index < CELLS_COUNT; row_index++) {
@@ -83,7 +93,7 @@ void game_board_table_move_right(GameBoardTable const table, MoveResult* const m
     }
 }
 
-void game_board_table_move_up(GameBoardTable const table, MoveResult* const move_result) {
+void game_board_table_move_up(GameBoardTable table, MoveResult* const move_result) {
     move_result_init(move_result, table);
 
     for(uint8_t column_index = 0; column_index < CELLS_COUNT; column_index++) {
@@ -95,7 +105,7 @@ void game_board_table_move_up(GameBoardTable const table, MoveResult* const move
     }
 }
 
-void game_board_table_move_down(GameBoardTable const table, MoveResult* const move_result) {
+void game_board_table_move_down(GameBoardTable table, MoveResult* const move_result) {
     move_result_init(move_result, table);
 
     for(uint8_t column_index = 0; column_index < CELLS_COUNT; column_index++) {
@@ -116,7 +126,7 @@ void game_board_table_push_random_digit(GameBoardTable table) {
     for(uint8_t i = 0; i < CELLS_COUNT; i++) {
         for(uint8_t j = 0; j < CELLS_COUNT; j++) {
             if(table[i][j] == 0) {
-                empty_cell_indexes[empty_cells_count++] = i * CELLS_COUNT + j;
+                empty_cell_indexes[empty_cells_count++] = (uint8_t)(i * CELLS_COUNT + j);
             }
         }
     }
@@ -125,7 +135,7 @@ void game_board_table_push_random_digit(GameBoardTable table) {
 
     uint8_t cell_index = empty_cell_indexes[random() % empty_cells_count];
     table[cell_index / CELLS_COUNT][cell_index % CELLS_COUNT] =
-        random() % 100 < 90 ? 1 : 2; // 90% for 2, 25% for 4
+        random() % 100 < 90 ? 1 : 2; // 90% for 2, 10% for 4
 }
 
 void game_board_table_line_move(GameBoardTableLine line, MoveResult* const move_result) {
@@ -139,7 +149,7 @@ void game_board_table_line_move(GameBoardTableLine line, MoveResult* const move_
                 game_board_table_line_find_non_empty_cell_index(line, i);
             if(next_non_empty_index >= CELLS_COUNT) break;
 
-            uint8_t offset = next_non_empty_index - i;
+            uint8_t offset = (uint8_t)(next_non_empty_index - i);
             game_board_table_line_shift(line, i, offset);
             move_result->is_table_updated = true;
         }
@@ -152,7 +162,7 @@ void game_board_table_line_move(GameBoardTableLine line, MoveResult* const move_
                 game_board_table_line_find_non_empty_cell_index(line, i + 1);
             if(next_non_empty_index >= CELLS_COUNT) break;
 
-            uint8_t offset = next_non_empty_index - (i + 1);
+            uint8_t offset = (uint8_t)(next_non_empty_index - (i + 1));
             game_board_table_line_shift(line, i + 1, offset);
             move_result->is_table_updated = true;
         }
@@ -167,7 +177,7 @@ void game_board_table_line_move(GameBoardTableLine line, MoveResult* const move_
             game_board_table_line_shift(line, i + 1, 1);
 
             move_result->is_table_updated = true;
-            move_result->score_points += 2 << val;
+            move_result->score_points += 2u << val;
         }
     }
 }
@@ -209,7 +219,8 @@ void game_board_table_line_reverse(GameBoardTableLine line) {
 uint8_t
     game_board_table_line_find_non_empty_cell_index(GameBoardTableLine line, uint8_t start_index) {
     uint8_t offset = 1;
-    while(start_index + offset < CELLS_COUNT && line[start_index + offset] == 0) offset++;
+    while(start_index + offset < CELLS_COUNT && line[start_index + offset] == 0)
+        offset++;
     return start_index + offset;
 }
 
@@ -219,7 +230,7 @@ void game_board_table_line_shift(GameBoardTableLine line, uint8_t from_index, ui
     }
 }
 
-void move_result_init(MoveResult* move_result, GameBoardTable const table) {
+void move_result_init(MoveResult* move_result, GameBoardTable table) {
     move_result->is_table_updated = false;
     move_result->score_points = 0;
     game_board_table_copy(table, move_result->new_table);
