@@ -96,13 +96,7 @@ static void ui_draw_digit(Canvas* canvas, uint8_t row, uint8_t column, uint8_t v
     uint8_t left = FRAME_LEFT + 1 + (column * (CELL_INNER_SIZE + 1));
     uint8_t top = FRAME_TOP + 1 + (row * (CELL_INNER_SIZE + 1));
 
-    for(uint8_t r = 0; r < CELL_INNER_SIZE; r++) {
-        for(uint8_t c = 0; c < CELL_INNER_SIZE; c++) {
-            if(digits[value - 1][r][c] == 1) {
-                canvas_draw_dot(canvas, left + c, top + r);
-            }
-        }
-    }
+    canvas_draw_xbm(canvas, left, top, CELL_INNER_SIZE, CELL_INNER_SIZE, digits[value - 1]);
 }
 
 static void ui_draw_table(Canvas* canvas, const GameBoardTable table) {
