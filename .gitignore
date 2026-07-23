@@ -6,3 +6,4 @@ dist/*
 .ufbt
 venv
 .DS_Store
+test/build
