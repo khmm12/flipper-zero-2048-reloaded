@@ -12,6 +12,9 @@ typedef struct {
     UIState ui_state;
     GameState state;
     int8_t selected_menu_item;
+    // The game state changed since the last successful save; lets the periodic
+    // autosave skip the SD write when nothing happened.
+    bool is_state_dirty;
 } GameController;
 
 typedef struct {
@@ -31,4 +34,5 @@ void game_controller_handle_input(
 #define MENU_ITEMS_COUNT 2
 void game_controller_show_menu(GameController* gamectrl);
 void game_controller_close_menu(GameController* gamectrl);
+void game_controller_send(GameController* gamectrl, GameEvent event);
 #endif

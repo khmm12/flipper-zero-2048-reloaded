@@ -23,12 +23,25 @@ static bool game_state_save_callback(GameState* state);
 
 void game_controller_init(GameController* gamectrl) {
     game_state_init(&gamectrl->state);
-    game_state_load(&gamectrl->state, game_state_load_callback);
+    // A fresh (unloaded) state differs from whatever is on disk, so it is
+    // dirty until the first save.
+    gamectrl->is_state_dirty = !game_state_load(&gamectrl->state, game_state_load_callback);
     gamectrl->ui_state = gamectrl->state.is_over ? UIStateGameOver : UIStateInProgress;
 }
 
 void game_controller_save_state(GameController* gamectrl) {
-    game_state_dump(&gamectrl->state, game_state_save_callback);
+    if(!gamectrl->is_state_dirty) return;
+
+    // A failed save keeps the state dirty, so the next autosave retries.
+    if(game_state_dump(&gamectrl->state, game_state_save_callback)) {
+        gamectrl->is_state_dirty = false;
+    }
+}
+
+// All game-state mutations go through here so the dirty flag can't be missed.
+void game_controller_send(GameController* gamectrl, GameEvent event) {
+    game_state_send(&gamectrl->state, event);
+    gamectrl->is_state_dirty = true;
 }
 
 void game_controller_show_menu(GameController* gamectrl) {

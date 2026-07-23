@@ -31,7 +31,7 @@ static void ui_state_menu_handle(
             out->is_handled = true;
         } else if(gamectrl->selected_menu_item == 1) {
             // new game
-            game_state_send(&gamectrl->state, GameReset);
+            game_controller_send(gamectrl, GameReset);
             game_controller_save_state(gamectrl);
             game_controller_close_menu(gamectrl);
             out->is_handled = true;
@@ -53,22 +53,22 @@ static void ui_state_in_progress_handle(
     switch(input.key) {
     case InputKeyLeft:
         if(input.type != InputTypePress) break;
-        game_state_send(&gamectrl->state, GameMoveLeft);
+        game_controller_send(gamectrl, GameMoveLeft);
         out->is_handled = true;
         break;
     case InputKeyRight:
         if(input.type != InputTypePress) break;
-        game_state_send(&gamectrl->state, GameMoveRight);
+        game_controller_send(gamectrl, GameMoveRight);
         out->is_handled = true;
         break;
     case InputKeyUp:
         if(input.type != InputTypePress) break;
-        game_state_send(&gamectrl->state, GameMoveUp);
+        game_controller_send(gamectrl, GameMoveUp);
         out->is_handled = true;
         break;
     case InputKeyDown:
         if(input.type != InputTypePress) break;
-        game_state_send(&gamectrl->state, GameMoveDown);
+        game_controller_send(gamectrl, GameMoveDown);
         out->is_handled = true;
         break;
     case InputKeyOk:
@@ -78,7 +78,7 @@ static void ui_state_in_progress_handle(
         break;
     case InputKeyBack:
         if(input.type != InputTypeShort) break;
-        game_state_send(&gamectrl->state, GameMoveUndo);
+        game_controller_send(gamectrl, GameMoveUndo);
         out->is_handled = true;
         break;
     default:
@@ -97,14 +97,14 @@ static void ui_state_game_over_handle(
     switch(input.key) {
     case InputKeyOk:
         if(input.type != InputTypePress) break;
-        game_state_send(&gamectrl->state, GameReset);
+        game_controller_send(gamectrl, GameReset);
         game_controller_save_state(gamectrl);
         gamectrl->ui_state = UIStateInProgress;
         out->is_handled = true;
         break;
     case InputKeyBack:
         if(input.type != InputTypeShort) break;
-        game_state_send(&gamectrl->state, GameMoveUndo);
+        game_controller_send(gamectrl, GameMoveUndo);
         // With an empty history the undo is a no-op and the board stays dead —
         // leave the game over screen up in that case.
         if(!gamectrl->state.is_over) gamectrl->ui_state = UIStateInProgress;
