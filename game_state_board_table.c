@@ -1,5 +1,8 @@
 #include "game_state_board_table.h"
 
+#include <stdlib.h>
+#include <string.h>
+
 typedef uint8_t GameBoardTableLine[CELLS_COUNT];
 
 static void
@@ -125,7 +128,7 @@ void game_board_table_push_random_digit(GameBoardTable table) {
 
     uint8_t cell_index = empty_cell_indexes[random() % empty_cells_count];
     table[cell_index / CELLS_COUNT][cell_index % CELLS_COUNT] =
-        random() % 100 < 90 ? 1 : 2; // 90% for 2, 25% for 4
+        random() % 100 < 90 ? 1 : 2; // 90% for 2, 10% for 4
 }
 
 void game_board_table_line_move(GameBoardTableLine line, MoveResult* const move_result) {
@@ -167,7 +170,7 @@ void game_board_table_line_move(GameBoardTableLine line, MoveResult* const move_
             game_board_table_line_shift(line, i + 1, 1);
 
             move_result->is_table_updated = true;
-            move_result->score_points += 2 << val;
+            move_result->score_points += 2u << val;
         }
     }
 }
@@ -209,7 +212,8 @@ void game_board_table_line_reverse(GameBoardTableLine line) {
 uint8_t
     game_board_table_line_find_non_empty_cell_index(GameBoardTableLine line, uint8_t start_index) {
     uint8_t offset = 1;
-    while(start_index + offset < CELLS_COUNT && line[start_index + offset] == 0) offset++;
+    while(start_index + offset < CELLS_COUNT && line[start_index + offset] == 0)
+        offset++;
     return start_index + offset;
 }
 

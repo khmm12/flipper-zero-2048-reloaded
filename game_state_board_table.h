@@ -1,5 +1,6 @@
 #pragma once
-#include <furi.h>
+#include <stdbool.h>
+#include <stdint.h>
 #include "game_internals.h"
 
 typedef uint8_t GameBoardTable[CELLS_COUNT][CELLS_COUNT];

@@ -1,4 +1,4 @@
-#define __game_controller_c
+#define GAME_CONTROLLER_INTERNAL
 #include "game_controller.h"
 
 #include <furi.h>
@@ -6,9 +6,9 @@
 #include "digits.h"
 
 #define CELL_INNER_SIZE 14
-#define FRAME_LEFT 10
-#define FRAME_TOP 1
-#define FRAME_SIZE 61
+#define FRAME_LEFT      10
+#define FRAME_TOP       1
+#define FRAME_SIZE      61
 
 static const char* popup_menu_items[] = {"Resume", "New Game"};
 
@@ -65,7 +65,7 @@ static void game_controller_draw_menu(const GameController* gamectrl, Canvas* co
 static void game_controller_draw_game_over(const GameController* gamectrl, Canvas* const canvas) {
     ui_draw_popup_background(canvas);
 
-    bool record_broken = gamectrl->state.board.score > gamectrl->state.top_score;
+    bool record_broken = gamectrl->state.is_record_broken;
 
     canvas_set_color(canvas, ColorWhite);
     canvas_draw_rbox(canvas, 14, 12, 100, 40, 4);
@@ -94,7 +94,7 @@ static void game_controller_draw_game_over(const GameController* gamectrl, Canva
 }
 
 static void ui_draw_digit(Canvas* canvas, uint8_t row, uint8_t column, uint8_t value) {
-    if(value == 0) return;
+    if(value == 0 || value > MAX_CELL_VALUE) return;
 
     uint8_t left = FRAME_LEFT + 1 + (column * (CELL_INNER_SIZE + 1));
     uint8_t top = FRAME_TOP + 1 + (row * (CELL_INNER_SIZE + 1));

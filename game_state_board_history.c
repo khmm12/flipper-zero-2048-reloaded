@@ -1,5 +1,7 @@
 #include "game_state_board_history.h"
 
+#include <string.h>
+
 void game_state_board_history_init(GameStateBoardHistory* history) {
     history->top = -1;
 }

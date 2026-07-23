@@ -1,5 +1,5 @@
 #pragma once
-#include <furi.h>
+#include <stdint.h>
 #include "game_state_board_table.h"
 #include "game_internals.h"
 

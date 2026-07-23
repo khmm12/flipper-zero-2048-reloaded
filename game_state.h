@@ -1,5 +1,6 @@
 #pragma once
-#include <furi.h>
+#include <stdbool.h>
+#include <stdint.h>
 #include "game_internals.h"
 #include "game_state_board.h"
 #include "game_state_board_history.h"
@@ -18,6 +19,7 @@ typedef struct {
     GameStateBoardHistory history;
     uint32_t top_score;
     bool is_over;
+    bool is_record_broken;
 } GameState;
 
 typedef bool (*GameStateLoadCallback)(GameState* self);

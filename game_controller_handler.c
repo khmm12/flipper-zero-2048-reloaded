@@ -1,4 +1,4 @@
-#define __game_controller_c
+#define GAME_CONTROLLER_INTERNAL
 #include "game_controller.h"
 
 #include <input/input.h>
@@ -109,8 +109,11 @@ void ui_state_game_over_handle(
     case InputKeyBack:
         if(input.type != InputTypeShort) break;
         game_state_send(&gamectrl->state, GameMoveUndo);
-        gamectrl->ui_state = UIStateInProgress;
+        // With an empty history the undo is a no-op and the board stays dead —
+        // leave the game over screen up in that case.
+        if(!gamectrl->state.is_over) gamectrl->ui_state = UIStateInProgress;
         out->is_handled = true;
+        break;
     default:
         break;
     }
