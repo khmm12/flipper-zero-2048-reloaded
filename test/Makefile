@@ -13,7 +13,8 @@ WARNINGS := \
 	-Wmissing-prototypes -Wold-style-definition
 
 CFLAGS ?= -std=c11 -O2 -g
-CFLAGS += $(WARNINGS) -I..
+# _DEFAULT_SOURCE: glibc hides the POSIX random() behind strict -std=c11.
+CFLAGS += $(WARNINGS) -I.. -D_DEFAULT_SOURCE
 
 # The sanitizers turn the tests into a detector for the very OOB accesses the
 # save-state validation exists to prevent.

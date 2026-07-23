@@ -12,11 +12,11 @@ typedef struct {
 } MoveResult;
 
 void game_board_table_init(GameBoardTable table);
-void game_board_table_copy(GameBoardTable const src, GameBoardTable dest);
+void game_board_table_copy(GameBoardTable src, GameBoardTable dest);
 bool game_board_table_has_empty_cells(GameBoardTable table);
 bool game_board_table_can_move(GameBoardTable table);
 void game_board_table_push_random_digit(GameBoardTable table);
-void game_board_table_move_down(GameBoardTable const table, MoveResult* const move_result);
-void game_board_table_move_left(GameBoardTable const table, MoveResult* const move_result);
-void game_board_table_move_right(GameBoardTable const table, MoveResult* const move_result);
-void game_board_table_move_up(GameBoardTable const table, MoveResult* const move_result);
+void game_board_table_move_down(GameBoardTable table, MoveResult* const move_result);
+void game_board_table_move_left(GameBoardTable table, MoveResult* const move_result);
+void game_board_table_move_right(GameBoardTable table, MoveResult* const move_result);
+void game_board_table_move_up(GameBoardTable table, MoveResult* const move_result);

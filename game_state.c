@@ -4,8 +4,9 @@
 
 static void game_state_reset(GameState* const game_state);
 static void game_state_undo(GameState* const state);
-static void
-    game_state_apply_move_result(GameState* const state, const MoveResult* const move_result);
+// The move result is read-only here; not const because const on the embedded
+// array typedef poisons every caller with qualifier mismatches before C23.
+static void game_state_apply_move_result(GameState* const state, MoveResult* const move_result);
 static void game_state_save_score(GameState* const state);
 static bool game_state_board_table_is_valid(const GameStateBoard* const board);
 
@@ -80,7 +81,7 @@ void game_state_undo(GameState* const state) {
     game_state_post_update(state);
 }
 
-void game_state_apply_move_result(GameState* const state, const MoveResult* const move_result) {
+void game_state_apply_move_result(GameState* const state, MoveResult* const move_result) {
     if(!move_result->is_table_updated) return;
 
     // Save the current state to the history stack
