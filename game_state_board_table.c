@@ -26,8 +26,8 @@ void game_board_table_init(GameBoardTable table) {
     game_board_table_push_random_digit(table);
 }
 
-void game_board_table_copy(GameBoardTable const table, GameBoardTable dest) {
-    memcpy(dest, table, sizeof(GameBoardTable));
+void game_board_table_copy(GameBoardTable const src, GameBoardTable dest) {
+    memcpy(dest, src, sizeof(GameBoardTable));
 }
 
 bool game_board_table_can_move(GameBoardTable table) {

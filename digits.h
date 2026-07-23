@@ -3,7 +3,7 @@
 #include <stdint.h>
 #include "game_internals.h"
 
-const uint8_t digits[MAX_CELL_VALUE][14][14] = {
+static const uint8_t digits[MAX_CELL_VALUE][14][14] = {
 
     // 2
     {{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},

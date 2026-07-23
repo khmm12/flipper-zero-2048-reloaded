@@ -3,7 +3,7 @@
 
 #include <input/input.h>
 
-void ui_state_menu_handle(
+static void ui_state_menu_handle(
     GameController* gamectrl,
     InputEvent input,
     GameControllerInputHandlerResult* out) {
@@ -44,11 +44,9 @@ void ui_state_menu_handle(
     default:
         break;
     }
-
-    return;
 }
 
-void ui_state_in_progress_handle(
+static void ui_state_in_progress_handle(
     GameController* gamectrl,
     InputEvent input,
     GameControllerInputHandlerResult* out) {
@@ -90,11 +88,9 @@ void ui_state_in_progress_handle(
     if(gamectrl->state.is_over) {
         gamectrl->ui_state = UIStateGameOver;
     }
-
-    return;
 }
 
-void ui_state_game_over_handle(
+static void ui_state_game_over_handle(
     GameController* gamectrl,
     InputEvent input,
     GameControllerInputHandlerResult* out) {

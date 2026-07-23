@@ -84,10 +84,7 @@ static void game_controller_draw_game_over(const GameController* gamectrl, Canva
         canvas_draw_str_aligned(canvas, 64, 29, AlignCenter, AlignTop, "Your Score");
     }
 
-    uint8_t bufSize = 12;
-    char buf[bufSize];
-
-    memset(buf, 0, bufSize);
+    char buf[12];
     snprintf(buf, sizeof(buf), "%lu", gamectrl->state.board.score);
     canvas_set_font(canvas, FontPrimary);
     canvas_draw_str_aligned(canvas, 64, 48, AlignCenter, AlignBottom, buf);
@@ -136,20 +133,16 @@ static void ui_draw_stats(Canvas* const canvas, const GameState* state) {
     canvas_draw_str_aligned(canvas, 128, FRAME_TOP + 20, AlignRight, AlignTop, "Moves");
     canvas_draw_str_aligned(canvas, 128, FRAME_TOP + 40, AlignRight, AlignTop, "Top Score");
 
-    uint8_t bufSize = 12;
-    char buf[bufSize];
+    char buf[12];
 
     canvas_set_font(canvas, FontSecondary);
 
     snprintf(buf, sizeof(buf), "%lu", state->board.score);
-    canvas_set_font(canvas, FontSecondary);
     canvas_draw_str_aligned(canvas, 128, FRAME_TOP + 10, AlignRight, AlignTop, buf);
 
-    memset(buf, 0, bufSize);
     snprintf(buf, sizeof(buf), "%lu", state->board.moves);
     canvas_draw_str_aligned(canvas, 128, FRAME_TOP + 30, AlignRight, AlignTop, buf);
 
-    memset(buf, 0, bufSize);
     snprintf(buf, sizeof(buf), "%lu", state->top_score);
     canvas_draw_str_aligned(canvas, 128, FRAME_TOP + 50, AlignRight, AlignTop, buf);
 }
