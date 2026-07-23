@@ -30,22 +30,29 @@ void game_board_table_copy(GameBoardTable const src, GameBoardTable dest) {
     memcpy(dest, src, sizeof(GameBoardTable));
 }
 
+// A move is possible iff a tile can shift or two adjacent tiles can merge.
+// A shift exists exactly when the board holds both a tile and an empty cell:
+// if no direction shifts anything, every row and column is entirely empty or
+// entirely full, which is impossible on a board that has both. The property
+// test in test_game_2048.c checks this against move simulation.
 bool game_board_table_can_move(GameBoardTable table) {
-    MoveResult move_result;
+    bool has_tile = false;
+    bool has_empty = false;
 
-    game_board_table_move_left(table, &move_result);
-    if(move_result.is_table_updated) return true;
+    for(uint8_t i = 0; i < CELLS_COUNT; i++) {
+        for(uint8_t j = 0; j < CELLS_COUNT; j++) {
+            uint8_t value = table[i][j];
+            if(value == 0) {
+                has_empty = true;
+                continue;
+            }
+            has_tile = true;
+            if(j + 1 < CELLS_COUNT && value == table[i][j + 1]) return true;
+            if(i + 1 < CELLS_COUNT && value == table[i + 1][j]) return true;
+        }
+    }
 
-    game_board_table_move_right(table, &move_result);
-    if(move_result.is_table_updated) return true;
-
-    game_board_table_move_up(table, &move_result);
-    if(move_result.is_table_updated) return true;
-
-    game_board_table_move_down(table, &move_result);
-    if(move_result.is_table_updated) return true;
-
-    return false;
+    return has_tile && has_empty;
 }
 
 bool game_board_table_has_empty_cells(GameBoardTable table) {

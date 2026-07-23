@@ -164,6 +164,48 @@ static void test_can_move_and_game_over(void) {
     CHECK(game_state_board_is_over(&board));
 }
 
+// Oracle for the property test below: the definition of "can move" is that
+// simulating some direction actually changes the board.
+static bool can_move_by_simulation(GameBoardTable table) {
+    MoveResult r;
+
+    game_board_table_move_left(table, &r);
+    if(r.is_table_updated) return true;
+    game_board_table_move_right(table, &r);
+    if(r.is_table_updated) return true;
+    game_board_table_move_up(table, &r);
+    if(r.is_table_updated) return true;
+    game_board_table_move_down(table, &r);
+    return r.is_table_updated;
+}
+
+static void test_can_move_matches_simulation(void) {
+    GameBoardTable table = {0};
+
+    // Empty board: nothing to move.
+    CHECK(!game_board_table_can_move(table));
+
+    // Sparse random boards (~25% empty cells) exercise the shift condition.
+    for(uint16_t n = 0; n < 200; n++) {
+        for(uint8_t i = 0; i < CELLS_COUNT; i++) {
+            for(uint8_t j = 0; j < CELLS_COUNT; j++) {
+                table[i][j] = (uint8_t)(random() % 4);
+            }
+        }
+        CHECK(game_board_table_can_move(table) == can_move_by_simulation(table));
+    }
+
+    // Full random boards exercise the adjacent-pair condition.
+    for(uint16_t n = 0; n < 200; n++) {
+        for(uint8_t i = 0; i < CELLS_COUNT; i++) {
+            for(uint8_t j = 0; j < CELLS_COUNT; j++) {
+                table[i][j] = (uint8_t)(1 + random() % 3);
+            }
+        }
+        CHECK(game_board_table_can_move(table) == can_move_by_simulation(table));
+    }
+}
+
 static void test_push_random_digit(void) {
     GameBoardTable table = {0};
 
@@ -404,6 +446,7 @@ int main(void) {
     test_move_right_merge_order();
     test_move_directions();
     test_can_move_and_game_over();
+    test_can_move_matches_simulation();
     test_push_random_digit();
     test_history_lifo_and_overflow();
     test_game_state_move_and_undo();
