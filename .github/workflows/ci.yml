@@ -41,7 +41,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
-      - name: Lint the pure core (strict warnings)
+      - name: Lint core + tests (strict warnings)
         run: make -C test lint
 
       - name: Run host unit tests

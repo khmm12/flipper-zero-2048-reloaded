@@ -15,6 +15,10 @@ WARNINGS := \
 CFLAGS ?= -std=c11 -O2 -g
 CFLAGS += $(WARNINGS) -I..
 
+# The sanitizers turn the tests into a detector for the very OOB accesses the
+# save-state validation exists to prevent.
+SANITIZE := -fsanitize=address,undefined
+
 CORE := \
 	../game_state_board_table.c \
 	../game_state_board.c \
@@ -29,7 +33,8 @@ BIN := build/test_runner
 test: $(BIN)
 	@./$(BIN)
 
-# Lint-only: compile every core translation unit with the strict warning set.
+# Lint-only: compile every translation unit (core + tests) with the strict
+# warning set.
 lint:
 	@mkdir -p build
 	@for f in $(SRC); do \
@@ -40,7 +45,7 @@ lint:
 
 $(BIN): $(SRC)
 	@mkdir -p build
-	$(CC) $(CFLAGS) $(SRC) -o $(BIN)
+	$(CC) $(CFLAGS) $(SANITIZE) $(SRC) -o $(BIN)
 
 clean:
 	@rm -rf build
