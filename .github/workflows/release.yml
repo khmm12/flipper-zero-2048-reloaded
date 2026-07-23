@@ -1,0 +1,29 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build FAP and publish release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Build with ufbt
+        id: build-app
+        uses: flipperdevices/flipperzero-ufbt-action@v0.1
+        with:
+          sdk-channel: release
+
+      - name: Create GitHub release with the FAP attached
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --generate-notes
+          echo "${{ steps.build-app.outputs.fap-artifacts }}" | xargs gh release upload "$GITHUB_REF_NAME"
